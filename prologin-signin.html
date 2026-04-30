@@ -1,0 +1,1173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ProLogin</title>
+  <meta http-equiv="Content-Security-Policy" content="img-src *">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;600;700&display=swap" rel="stylesheet"/>
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <!-- Google API Client -->
+  <script src="https://apis.google.com/js/api.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0a0f1e; --surface: #111827; --surface2: #1a2236;
+      --border: #1e2d45; --accent: #3b82f6; --accent2: #06b6d4;
+      --text: #f1f5f9; --muted: #64748b; --danger: #f87171; --success: #10b981;
+    }
+    body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; min-height: 100vh; display: flex; align-items: center; justify-content: center; overflow-x: hidden; position: relative; }
+    body::before { content: ''; position: fixed; inset: 0; background-image: linear-gradient(rgba(59,130,246,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(59,130,246,0.04) 1px, transparent 1px); background-size: 40px 40px; animation: gridMove 20s linear infinite; z-index: 0; }
+    @keyframes gridMove { 0%{ background-position:0 0; } 100%{ background-position:40px 40px; } }
+    .orb { position: fixed; border-radius: 50%; filter: blur(80px); opacity: 0.15; z-index: 0; animation: pulse 6s ease-in-out infinite alternate; }
+    .orb1 { width:400px; height:400px; background:var(--accent); top:-100px; left:-100px; }
+    .orb2 { width:300px; height:300px; background:var(--accent2); bottom:-80px; right:-80px; animation-delay:3s; }
+    @keyframes pulse { from{opacity:0.1;transform:scale(1);} to{opacity:0.2;transform:scale(1.1);} }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(24px);} to{opacity:1;transform:translateY(0);} }
+
+    /* SCREENS */
+    .screen { display:none; position:relative; z-index:1; width:100%; }
+    .screen.active { display:flex; align-items:center; justify-content:center; min-height:100vh; }
+    #dashboard-screen.active { display:block; min-height:100vh; }
+    #test-screen.active { display:block !important; min-height:100vh; }
+
+    /* CARD */
+    .card { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:40px 36px; width:100%; max-width:420px; box-shadow:0 0 0 1px rgba(59,130,246,0.1),0 32px 64px rgba(0,0,0,0.5); animation:fadeUp 0.6s cubic-bezier(0.16,1,0.3,1) both; }
+    .logo-wrap { display:inline-flex; align-items:center; gap:10px; margin-bottom:24px; }
+    .logo-icon { width:36px; height:36px; background:linear-gradient(135deg,var(--accent),var(--accent2)); border-radius:10px; display:flex; align-items:center; justify-content:center; font-family:'Space Mono',monospace; font-size:16px; font-weight:700; color:white; flex-shrink:0; }
+    .logo-text { font-family:'Space Mono',monospace; font-size:18px; font-weight:700; background:linear-gradient(90deg,var(--accent),var(--accent2)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+    .card h1 { font-size:20px; font-weight:700; margin-bottom:4px; }
+    .card .sub { font-size:13px; color:var(--muted); margin-bottom:24px; line-height:1.6; }
+
+    /* TABS */
+    .tabs { display:flex; background:var(--surface2); border-radius:10px; padding:4px; margin-bottom:24px; }
+    .tab { flex:1; padding:8px; text-align:center; font-size:13px; font-weight:600; border-radius:7px; cursor:pointer; transition:all 0.2s; color:var(--muted); border:none; background:transparent; font-family:'DM Sans',sans-serif; }
+    .tab.active { background:var(--surface); color:var(--text); box-shadow:0 1px 4px rgba(0,0,0,0.3); }
+
+    /* FORM */
+    .form-group { margin-bottom:14px; }
+    .form-group label { display:block; font-size:11px; font-family:'Space Mono',monospace; text-transform:uppercase; letter-spacing:1px; color:var(--muted); margin-bottom:6px; }
+    .form-group input { width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:10px 14px; color:var(--text); font-size:14px; font-family:'DM Sans',sans-serif; outline:none; transition:border 0.2s; }
+    .form-group input:focus { border-color:var(--accent); }
+    .btn-full { width:100%; background:linear-gradient(135deg,var(--accent),var(--accent2)); border:none; border-radius:10px; padding:12px; color:white; font-size:14px; font-weight:600; cursor:pointer; font-family:'DM Sans',sans-serif; transition:opacity 0.2s; margin-top:4px; }
+    .btn-full:hover { opacity:0.9; }
+
+    /* DIVIDER */
+    .divider { display:flex; align-items:center; gap:12px; margin:20px 0; }
+    .divider::before,.divider::after { content:''; flex:1; height:1px; background:var(--border); }
+    .divider span { font-size:11px; color:var(--muted); font-family:'Space Mono',monospace; text-transform:uppercase; letter-spacing:1px; }
+
+    /* GOOGLE BTN */
+    .signin-wrap { display:flex; justify-content:center; }
+    #g_id_onload { display:none; }
+
+    /* ALERTS */
+    .alert { font-size:13px; padding:10px 14px; border-radius:8px; margin-bottom:14px; display:none; }
+    .alert.error { color:var(--danger); background:rgba(248,113,113,0.1); border:1px solid rgba(248,113,113,0.3); }
+    .alert.success { color:var(--success); background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.3); }
+    .alert.info { color:var(--accent); background:rgba(59,130,246,0.1); border:1px solid rgba(59,130,246,0.3); }
+
+    .footer-note { font-size:11px; color:var(--muted); line-height:1.6; margin-top:20px; padding-top:16px; border-top:1px solid var(--border); text-align:center; }
+    .footer-note a { color:var(--accent); text-decoration:none; }
+    .btn-google { width:100%; display:flex; align-items:center; justify-content:center; gap:10px; background:white; border:1px solid #dadce0; border-radius:10px; padding:10px 16px; color:#3c4043; font-size:14px; font-weight:500; cursor:pointer; font-family:"DM Sans",sans-serif; transition:box-shadow 0.2s; }
+    .btn-google:hover { box-shadow:0 1px 6px rgba(0,0,0,0.2); }
+
+    /* PENDING SCREEN */
+    .pending-card { text-align:center; }
+    .pending-icon { font-size:48px; margin-bottom:16px; }
+    .pending-card h1 { margin-bottom:8px; }
+
+    /* DASHBOARD */
+    .topbar { display:flex; align-items:center; justify-content:space-between; padding:16px 32px; background:rgba(17,24,39,0.9); backdrop-filter:blur(12px); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:10; }
+    .topbar-left { display:flex; align-items:center; gap:10px; }
+    .topbar-logo-text { font-family:'Space Mono',monospace; font-size:15px; font-weight:700; background:linear-gradient(90deg,var(--accent),var(--accent2)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+    .user-info { display:flex; align-items:center; gap:12px; }
+    .user-text { text-align:right; }
+    .user-name { font-size:14px; font-weight:600; }
+    .user-email { font-size:11px; color:var(--muted); }
+    .role-badge { font-size:10px; font-family:'Space Mono',monospace; padding:3px 10px; border-radius:20px; font-weight:700; letter-spacing:0.5px; white-space:nowrap; }
+    .role-teacher { background:rgba(59,130,246,0.15); color:var(--accent); border:1px solid rgba(59,130,246,0.3); }
+    .role-student { background:rgba(6,182,212,0.15); color:var(--accent2); border:1px solid rgba(6,182,212,0.3); }
+    .avatar { width:40px; height:40px; border-radius:50%; border:2px solid var(--accent); object-fit:cover; }
+    .avatar-fallback { width:40px; height:40px; border-radius:50%; border:2px solid var(--accent); background:linear-gradient(135deg,var(--accent),var(--accent2)); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:16px; color:white; flex-shrink:0; }
+    .signout-btn { background:transparent; border:1px solid var(--border); color:var(--muted); padding:6px 14px; border-radius:8px; font-size:12px; cursor:pointer; font-family:'DM Sans',sans-serif; transition:all 0.2s; }
+    .signout-btn:hover { border-color:var(--accent); color:var(--accent); }
+    .dashboard-content { max-width:960px; margin:0 auto; padding:40px 24px; }
+    .welcome-heading { font-size:30px; font-weight:700; margin-bottom:6px; animation:fadeUp 0.5s ease both; }
+    .welcome-sub { font-size:14px; color:var(--muted); margin-bottom:40px; animation:fadeUp 0.5s 0.1s ease both; }
+    .section-label { font-size:11px; font-family:'Space Mono',monospace; text-transform:uppercase; letter-spacing:1.5px; color:var(--muted); margin-bottom:16px; }
+    .apps-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:16px; animation:fadeUp 0.5s 0.2s ease both; margin-bottom:40px; }
+    .app-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:24px 16px; text-align:center; text-decoration:none; color:var(--text); cursor:pointer; transition:all 0.2s cubic-bezier(0.16,1,0.3,1); display:flex; flex-direction:column; align-items:center; gap:12px; position:relative; }
+    .app-card:hover { border-color:var(--accent); background:var(--surface2); transform:translateY(-4px); box-shadow:0 12px 32px rgba(59,130,246,0.15); }
+    .app-icon { width:52px; height:52px; border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:26px; }
+    .app-name { font-size:13px; font-weight:600; line-height:1.3; }
+    .app-desc { font-size:11px; color:var(--muted); margin-top:2px; }
+    .delete-btn { position:absolute; top:8px; right:8px; background:rgba(248,113,113,0.15); border:1px solid rgba(248,113,113,0.3); color:var(--danger); width:22px; height:22px; border-radius:6px; font-size:12px; cursor:pointer; display:none; align-items:center; justify-content:center; }
+    .app-card:hover .delete-btn { display:flex; }
+    .add-app-btn { background:var(--surface); border:1px dashed var(--border); border-radius:16px; padding:24px 16px; text-align:center; color:var(--muted); cursor:pointer; transition:all 0.2s; display:flex; flex-direction:column; align-items:center; gap:12px; }
+    .add-app-btn:hover { border-color:var(--accent); color:var(--accent); background:var(--surface2); }
+    .add-icon { width:52px; height:52px; border-radius:14px; background:rgba(59,130,246,0.1); display:flex; align-items:center; justify-content:center; font-size:24px; }
+
+    /* MODAL */
+    .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); backdrop-filter:blur(4px); z-index:100; align-items:center; justify-content:center; }
+    .modal-overlay.open { display:flex; }
+    .modal { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:32px; width:100%; max-width:440px; animation:fadeUp 0.3s ease both; }
+    .modal h2 { font-size:18px; font-weight:700; margin-bottom:6px; }
+    .modal p { font-size:13px; color:var(--muted); margin-bottom:24px; }
+    .emoji-grid { display:grid; grid-template-columns:repeat(8,1fr); gap:8px; margin-top:8px; }
+    .emoji-btn { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:8px; font-size:18px; cursor:pointer; transition:all 0.15s; text-align:center; }
+    .emoji-btn:hover,.emoji-btn.selected { border-color:var(--accent); background:rgba(59,130,246,0.15); }
+    .modal-actions { display:flex; gap:10px; margin-top:24px; }
+    .btn-primary { flex:1; background:linear-gradient(135deg,var(--accent),var(--accent2)); border:none; border-radius:10px; padding:12px; color:white; font-size:14px; font-weight:600; cursor:pointer; font-family:'DM Sans',sans-serif; }
+    .btn-secondary { background:transparent; border:1px solid var(--border); border-radius:10px; padding:12px 20px; color:var(--muted); font-size:14px; cursor:pointer; font-family:'DM Sans',sans-serif; transition:all 0.2s; }
+    .btn-secondary:hover { border-color:var(--accent); color:var(--accent); }
+    .audience-toggle { display:flex; gap:8px; }
+    .audience-btn { flex:1; padding:8px; border-radius:8px; border:1px solid var(--border); background:var(--surface2); color:var(--muted); font-size:12px; cursor:pointer; font-family:'DM Sans',sans-serif; transition:all 0.2s; text-align:center; }
+    .audience-btn.active { border-color:var(--accent); background:rgba(59,130,246,0.15); color:var(--accent); font-weight:600; }
+    .calendar-box { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:24px; margin-bottom:40px; animation:fadeUp 0.5s 0.15s ease both; }
+    .calendar-box h3 { font-size:13px; font-family:"Space Mono",monospace; text-transform:uppercase; letter-spacing:1.5px; color:var(--muted); margin-bottom:16px; }
+    .cal-event { display:flex; gap:14px; align-items:flex-start; padding:12px 0; border-bottom:1px solid var(--border); }
+    .cal-event:last-child { border-bottom:none; padding-bottom:0; }
+    .cal-date { background:linear-gradient(135deg,var(--accent),var(--accent2)); border-radius:10px; padding:8px 10px; text-align:center; min-width:48px; flex-shrink:0; }
+    .cal-date .day { font-size:18px; font-weight:700; line-height:1; color:white; }
+    .cal-date .month { font-size:10px; color:rgba(255,255,255,0.8); text-transform:uppercase; letter-spacing:1px; }
+    .cal-info .title { font-size:14px; font-weight:600; margin-bottom:3px; }
+    .cal-info .time { font-size:12px; color:var(--muted); }
+    .cal-empty { font-size:13px; color:var(--muted); text-align:center; padding:16px 0; }
+    .cal-connect-btn { width:100%; background:var(--surface2); border:1px dashed var(--border); border-radius:10px; padding:12px; color:var(--muted); font-size:13px; cursor:pointer; font-family:"DM Sans",sans-serif; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:8px; }
+    .cal-connect-btn:hover { border-color:var(--accent); color:var(--accent); }
+    .whitelist-box { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:24px; margin-bottom:40px; animation:fadeUp 0.5s 0.3s ease both; }
+    .whitelist-box h3 { font-size:14px; font-weight:700; margin-bottom:4px; }
+    .whitelist-box p { font-size:12px; color:var(--muted); margin-bottom:16px; }
+    .whitelist-input-row { display:flex; gap:10px; margin-bottom:16px; }
+    .whitelist-input-row input { flex:1; background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:10px 14px; color:var(--text); font-size:14px; font-family:"DM Sans",sans-serif; outline:none; }
+    .whitelist-input-row input:focus { border-color:var(--accent); }
+    .whitelist-input-row button { background:linear-gradient(135deg,var(--accent),var(--accent2)); border:none; border-radius:10px; padding:10px 18px; color:white; font-size:13px; font-weight:600; cursor:pointer; font-family:"DM Sans",sans-serif; white-space:nowrap; }
+    .whitelist-item { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; background:var(--surface2); border-radius:10px; margin-bottom:8px; font-size:13px; }
+    .whitelist-item button { background:rgba(248,113,113,0.15); border:1px solid rgba(248,113,113,0.3); color:var(--danger); padding:4px 10px; border-radius:6px; font-size:11px; cursor:pointer; font-family:"DM Sans",sans-serif; }
+
+    /* TEST MODE */
+    #test-screen.active { display:block; min-height:100vh; background:var(--bg); }
+    .test-topbar { display:flex; align-items:center; justify-content:space-between; padding:14px 32px; background:rgba(17,24,39,0.95); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:10; }
+    .test-timer { font-family:'Space Mono',monospace; font-size:18px; font-weight:700; color:var(--danger); }
+    .test-content { max-width:800px; margin:0 auto; padding:40px 24px; }
+    .test-title { font-size:24px; font-weight:700; margin-bottom:6px; }
+    .test-subtitle { font-size:13px; color:var(--muted); margin-bottom:40px; }
+    .question-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:28px; margin-bottom:20px; }
+    .question-num { font-size:11px; font-family:'Space Mono',monospace; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; }
+    .question-text { font-size:16px; font-weight:600; margin-bottom:20px; line-height:1.5; }
+    .options-list { display:flex; flex-direction:column; gap:10px; }
+    .option-btn { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:12px 16px; text-align:left; color:var(--text); font-size:14px; cursor:pointer; font-family:'DM Sans',sans-serif; transition:all 0.15s; }
+    .option-btn:hover { border-color:var(--accent); }
+    .option-btn.selected { border-color:var(--accent); background:rgba(59,130,246,0.15); color:var(--accent); font-weight:600; }
+    .short-answer { width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:12px 16px; color:var(--text); font-size:14px; font-family:'DM Sans',sans-serif; outline:none; resize:vertical; min-height:80px; }
+    .short-answer:focus { border-color:var(--accent); }
+    .submit-test-btn { width:100%; background:linear-gradient(135deg,var(--accent),var(--accent2)); border:none; border-radius:12px; padding:16px; color:white; font-size:16px; font-weight:700; cursor:pointer; font-family:'DM Sans',sans-serif; margin-top:20px; }
+    .test-complete { text-align:center; padding:80px 24px; }
+    .test-complete .icon { font-size:64px; margin-bottom:20px; }
+    .test-complete h1 { font-size:28px; font-weight:700; margin-bottom:8px; }
+    .test-complete p { color:var(--muted); font-size:14px; }
+
+    /* TEACHER TEST BUILDER */
+    .test-builder-box { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:24px; margin-bottom:40px; }
+    .test-builder-box h3 { font-size:14px; font-weight:700; margin-bottom:4px; }
+    .test-builder-box .desc { font-size:12px; color:var(--muted); margin-bottom:20px; }
+    .test-status-bar { display:flex; align-items:center; justify-content:space-between; background:var(--surface2); border-radius:10px; padding:12px 16px; margin-bottom:16px; }
+    .test-status-dot { width:8px; height:8px; border-radius:50%; margin-right:8px; display:inline-block; }
+    .dot-active { background:var(--success); box-shadow:0 0 6px var(--success); }
+    .dot-inactive { background:var(--muted); }
+    .test-action-row { display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap; }
+    .btn-sm { padding:8px 16px; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; font-family:'DM Sans',sans-serif; border:none; transition:all 0.2s; }
+    .btn-sm-primary { background:linear-gradient(135deg,var(--accent),var(--accent2)); color:white; }
+    .btn-sm-danger { background:rgba(248,113,113,0.15); color:var(--danger); border:1px solid rgba(248,113,113,0.3); }
+    .btn-sm-success { background:rgba(16,185,129,0.15); color:var(--success); border:1px solid rgba(16,185,129,0.3); }
+    .btn-sm-outline { background:transparent; color:var(--muted); border:1px solid var(--border); }
+    .btn-sm-outline:hover { border-color:var(--accent); color:var(--accent); }
+    .q-builder { background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:12px; }
+    .q-builder-row { display:flex; gap:8px; margin-bottom:10px; align-items:center; }
+    .q-type-select { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:6px 10px; color:var(--text); font-size:12px; font-family:'DM Sans',sans-serif; outline:none; }
+    .q-input { flex:1; background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:8px 12px; color:var(--text); font-size:13px; font-family:'DM Sans',sans-serif; outline:none; }
+    .q-input:focus { border-color:var(--accent); }
+    .q-options { display:flex; flex-direction:column; gap:6px; margin-top:8px; }
+    .q-option-row { display:flex; gap:6px; align-items:center; }
+    .q-option-input { flex:1; background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:6px 10px; color:var(--text); font-size:12px; font-family:'DM Sans',sans-serif; outline:none; }
+    .correct-radio { accent-color:var(--success); width:14px; height:14px; cursor:pointer; }
+    .q-remove-btn { background:none; border:none; color:var(--danger); cursor:pointer; font-size:16px; padding:0 4px; }
+
+    /* RESULTS */
+    .results-list { margin-top:16px; }
+    .result-item { background:var(--surface2); border-radius:10px; padding:12px 16px; margin-bottom:8px; font-size:13px; }
+    .result-name { font-weight:600; margin-bottom:4px; }
+    .result-score { color:var(--accent); font-family:'Space Mono',monospace; font-size:12px; }
+
+  </style>
+</head>
+<body>
+  <div class="orb orb1"></div>
+  <div class="orb orb2"></div>
+
+
+
+  <!-- LOGIN SCREEN -->
+  <div class="screen active" id="login-screen">
+    <div class="card">
+      <div class="logo-wrap">
+        <div class="logo-icon">P</div>
+        <span class="logo-text">ProLogin</span>
+      </div>
+      <h1>Welcome back</h1>
+      <p class="sub">Sign in to your ProSchools account.</p>
+
+      <div class="tabs">
+        <button class="tab active" onclick="switchTab('login')">Sign In</button>
+        <button class="tab" onclick="switchTab('signup')">Sign Up</button>
+      </div>
+
+      <div id="alert-box" class="alert error"></div>
+
+      <!-- SIGN IN FORM -->
+      <div id="login-form">
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="login-email" placeholder="you@proschools.net"/>
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="login-password" placeholder="••••••••"/>
+        </div>
+        <button class="btn-full" onclick="emailSignIn()">Sign In</button>
+        <div class="divider"><span>or</span></div>
+        <div class="signin-wrap">
+          <button class="btn-google" onclick="googleSignIn()">
+            <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.964 10.707A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.707V4.961H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.961L3.964 6.293C4.672 4.166 6.656 3.58 9 3.58z"/></svg>
+            Sign in with Google
+          </button>
+        </div>
+      </div>
+
+      <!-- SIGN UP FORM -->
+      <div id="signup-form" style="display:none">
+        <div class="form-group">
+          <label>Full Name</label>
+          <input type="text" id="signup-name" placeholder="Jane Smith"/>
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="signup-email" placeholder="you@example.com"/>
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="signup-password" placeholder="Min 6 characters"/>
+        </div>
+        <button class="btn-full" onclick="emailSignUp()">Create Account</button>
+      </div>
+
+      <p class="footer-note">
+        By signing in you agree to ProSchools' <a href="https://proschools.net" target="_blank">Terms of Service</a>.
+      </p>
+    </div>
+  </div>
+
+  <!-- PENDING VERIFICATION SCREEN -->
+  <div class="screen" id="verify-screen">
+    <div class="card pending-card">
+      <div class="logo-wrap" style="justify-content:center">
+        <div class="logo-icon">P</div>
+        <span class="logo-text">ProLogin</span>
+      </div>
+      <div class="pending-icon">📧</div>
+      <h1>Check your email</h1>
+      <p class="sub">We sent a verification link to <strong id="verify-email-shown"></strong>. Click it to verify your email, then come back here.</p>
+      <button class="btn-full" onclick="checkVerification()">I verified my email</button>
+      <p class="footer-note" style="margin-top:16px">
+        <a href="#" onclick="resendVerification()">Resend verification email</a> ·
+        <a href="#" onclick="goBackToLogin()">Back to sign in</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- PENDING APPROVAL SCREEN -->
+  <div class="screen" id="approval-screen">
+    <div class="card pending-card">
+      <div class="logo-wrap" style="justify-content:center">
+        <div class="logo-icon">P</div>
+        <span class="logo-text">ProLogin</span>
+      </div>
+      <div class="pending-icon">⏳</div>
+      <h1>Waiting for approval</h1>
+      <p class="sub">Your account is pending approval from a ProSchools administrator. You'll be able to sign in once approved.</p>
+      <button class="btn-full" onclick="goBackToLogin()">Back to sign in</button>
+    </div>
+  </div>
+
+  <!-- 2FA SCREEN -->
+  <div class="screen" id="twofa-screen">
+    <div class="card" style="text-align:center">
+      <div class="logo-wrap" style="justify-content:center">
+        <div class="logo-icon">P</div>
+        <span class="logo-text">ProLogin</span>
+      </div>
+      <div style="font-size:40px;margin-bottom:16px">🔐</div>
+      <h1>Two-Step Verification</h1>
+      <p class="sub">We sent a 6-digit code to <strong id="twofa-email-shown"></strong>. Enter it below.</p>
+      <div id="twofa-alert" class="alert error"></div>
+      <div class="form-group" style="text-align:left">
+        <label>Verification Code</label>
+        <input type="text" id="twofa-code" maxlength="6" placeholder="000000" style="text-align:center;font-size:24px;letter-spacing:8px;font-family:'Space Mono',monospace"/>
+      </div>
+      <button class="btn-full" onclick="verify2FA()">Verify</button>
+      <p class="footer-note" style="margin-top:16px">
+        <a href="#" onclick="resend2FA()">Resend code</a> ·
+        <a href="#" onclick="goBackToLogin()">Back to sign in</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- DASHBOARD SCREEN -->
+  <div class="screen" id="dashboard-screen">
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="logo-icon">P</div>
+        <span class="topbar-logo-text">ProLogin</span>
+      </div>
+      <div class="user-info">
+        <div class="user-text">
+          <div class="user-name" id="dash-name"></div>
+          <div class="user-email" id="dash-email"></div>
+        </div>
+        <span class="role-badge" id="dash-role"></span>
+        <div id="dash-avatar"></div>
+        <button class="signout-btn" onclick="signOut()">Sign out</button>
+      </div>
+    </div>
+    <div class="dashboard-content">
+      <div class="welcome-heading" id="dash-welcome"></div>
+      <div class="welcome-sub" id="dash-sub"></div>
+      <div class="calendar-box">
+        <h3>📅 Upcoming Events</h3>
+        <div id="cal-body">
+          <button class="cal-connect-btn" onclick="connectCalendar()">📅 Connect Google Calendar</button>
+        </div>
+      </div>
+      <div id="whitelist-section" style="display:none">
+        <div class="whitelist-box">
+          <h3>Student Access</h3>
+          <p>Add a student's email so they can sign in with Google even without a @proschools.net account.</p>
+          <div class="whitelist-input-row">
+            <input type="email" id="whitelist-email" placeholder="student@gmail.com"/>
+            <button onclick="addToWhitelist()">Add Student</button>
+          </div>
+          <div id="whitelist-list"></div>
+        </div>
+      </div>
+      <div id="test-builder-section" style="display:none">
+        <div class="test-builder-box">
+          <h3>🧪 Test Mode</h3>
+          <p class="desc">Create a test and activate it — students will be locked into it when they sign in.</p>
+          <div class="test-status-bar">
+            <div style="display:flex;align-items:center;font-size:13px;">
+              <span class="test-status-dot" id="test-dot"></span>
+              <span id="test-status-text">No test active</span>
+            </div>
+            <div class="test-action-row" style="margin:0">
+              <button class="btn-sm btn-sm-success" id="btn-activate" onclick="activateTest()" style="display:none">▶ Activate</button>
+              <button class="btn-sm btn-sm-danger" id="btn-deactivate" onclick="deactivateTest()" style="display:none">⏹ End Test</button>
+              <button class="btn-sm btn-sm-outline" onclick="viewResults()">📊 Results</button>
+            </div>
+          </div>
+
+          <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap">
+            <input id="test-title-input" class="q-input" placeholder="Test title e.g. Chapter 5 Quiz" style="flex:1;min-width:200px"/>
+            <input id="test-duration" class="q-input" type="number" placeholder="Minutes (0=unlimited)" style="width:160px"/>
+          </div>
+
+          <div id="questions-list"></div>
+
+          <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+            <button class="btn-sm btn-sm-outline" onclick="addQuestion('mc')">+ Multiple Choice</button>
+            <button class="btn-sm btn-sm-outline" onclick="addQuestion('tf')">+ True/False</button>
+            <button class="btn-sm btn-sm-outline" onclick="addQuestion('sa')">+ Short Answer</button>
+            <button class="btn-sm btn-sm-primary" onclick="saveTest()" style="margin-left:auto">💾 Save Test</button>
+          </div>
+        </div>
+
+        <div id="results-section" style="display:none">
+          <div class="test-builder-box">
+            <h3>📊 Results</h3>
+            <p class="desc">Student submissions for the current test.</p>
+            <div class="results-list" id="results-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-label">Your Apps</div>
+      <div class="apps-grid" id="apps-grid"></div>
+      <div class="calendar-box">
+        <h3>📅 Upcoming Events</h3>
+        <div id="cal-body">
+          <button class="cal-connect-btn" onclick="connectCalendar()">📅 Connect Google Calendar</button>
+        </div>
+      </div>
+      <div id="whitelist-section" style="display:none">
+        <div class="section-label" style="margin-top:40px;margin-bottom:16px">Approved Students (Google Sign-In)</div>
+        <div style="display:flex;gap:10px;margin-bottom:16px">
+          <input type="email" id="whitelist-email" placeholder="student@gmail.com" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;color:var(--text);font-size:14px;font-family:DM Sans,sans-serif;outline:none;"/>
+          <button onclick="addToWhitelist()" style="background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:10px;padding:10px 20px;color:white;font-size:14px;font-weight:600;cursor:pointer;font-family:DM Sans,sans-serif;">Add Student</button>
+        </div>
+        <div id="whitelist-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TEST SCREEN (LOCKDOWN) -->
+  <div class="screen" id="test-screen">
+    <div class="test-topbar">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="logo-icon">P</div>
+        <span style="font-family:'Space Mono',monospace;font-size:14px;font-weight:700;color:var(--text);">ProTest</span>
+        <span style="font-size:12px;color:var(--danger);font-weight:600;">🔒 SECURE MODE</span>
+      </div>
+      <div class="test-timer" id="test-timer">--:--</div>
+      <div style="font-size:12px;color:var(--muted)" id="test-progress"></div>
+    </div>
+    <div class="test-content" id="test-content"></div>
+  </div>
+
+  <!-- ADD APP MODAL -->
+  <div class="modal-overlay" id="modal">
+    <div class="modal">
+      <h2>Add an App</h2>
+      <p>Syncs instantly to all devices.</p>
+      <div class="form-group">
+        <label>App Name</label>
+        <input type="text" id="app-name" placeholder="e.g. Khan Academy"/>
+      </div>
+      <div class="form-group">
+        <label>URL</label>
+        <input type="text" id="app-url" placeholder="https://khanacademy.org"/>
+      </div>
+      <div class="form-group">
+        <label>Short Description</label>
+        <input type="text" id="app-desc" placeholder="e.g. Math practice"/>
+      </div>
+      <div class="form-group">
+        <label>Pick an Icon</label>
+        <div class="emoji-grid" id="emoji-grid"></div>
+      </div>
+      <div class="form-group">
+        <label>Who sees this?</label>
+        <div class="audience-toggle">
+          <button class="audience-btn active" data-val="both" onclick="setAudience('both',this)">Everyone</button>
+          <button class="audience-btn" data-val="teacher" onclick="setAudience('teacher',this)">Teachers</button>
+          <button class="audience-btn" data-val="student" onclick="setAudience('student',this)">Students</button>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn-primary" onclick="saveApp()">Add App</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Firebase init
+    firebase.initializeApp({
+      apiKey: "AIzaSyCK6gA_mYza6ZbYcfdnsdyBueBa1v6xoRo",
+      authDomain: "fir-project-19592.firebaseapp.com",
+      databaseURL: "https://fir-project-19592-default-rtdb.firebaseio.com",
+      projectId: "fir-project-19592",
+      storageBucket: "fir-project-19592.firebasestorage.app",
+      messagingSenderId: "177293144568",
+      appId: "1:177293144568:web:9427a21efb5f3e7138e60d"
+    });
+    const auth = firebase.auth();
+    const db = firebase.database();
+
+    // Config
+    const TEACHERS = ['alexfawcett@proschools.net'];
+    const AUTO_APPROVED = ['alexfawcett@proschools.net', 'jenfawcett85@proschools.net'];
+    const BG_COLORS = ['rgba(59,130,246,0.15)','rgba(6,182,212,0.15)','rgba(16,185,129,0.15)','rgba(239,68,68,0.15)','rgba(168,85,247,0.15)','rgba(245,158,11,0.15)'];
+    const EMOJIS = ['📚','🎮','🔬','🎨','🎵','🏫','📝','💡','🌍','🧮','🖱️','📊','🔭','🧪','🎯','✏️','📖','🗺️','🧠','💻','📱','🎤','🏆','⚽'];
+
+    const APPS_BOTH = [
+      { name:'TypingClub', desc:'ProSchools typing', icon:'⌨️', bg:'rgba(59,130,246,0.15)', url:'https://proschools.edclub.com', builtin:true },
+      { name:'Typing.com', desc:'Learn to type faster', icon:'🖥️', bg:'rgba(6,182,212,0.15)', url:'https://www.typing.com', builtin:true },
+      { name:'Google Drive', desc:'Your files & folders', icon:'📁', bg:'rgba(16,185,129,0.15)', url:'https://drive.google.com', builtin:true },
+    ];
+    const APPS_TEACHER = [
+      { name:'Gmail', desc:'School email', icon:'✉️', bg:'rgba(239,68,68,0.15)', url:'https://mail.google.com', builtin:true },
+    ];
+    const APPS_STUDENT = [
+      { name:'Ohio ID', desc:'Student ID portal', icon:'🪪', bg:'rgba(168,85,247,0.15)', url:'https://ohid.ohio.gov', builtin:true },
+    ];
+
+    let selectedEmoji = '📚';
+    let selectedAudience = 'both';
+    let isTeacher = false;
+    let currentFirebaseUser = null;
+
+    // Emoji picker
+    const emojiGrid = document.getElementById('emoji-grid');
+    EMOJIS.forEach((e, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'emoji-btn' + (i===0?' selected':'');
+      btn.textContent = e;
+      btn.onclick = () => {
+        document.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        selectedEmoji = e;
+      };
+      emojiGrid.appendChild(btn);
+    });
+
+    // Tab switching
+    function switchTab(tab) {
+      document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', (i===0&&tab==='login')||(i===1&&tab==='signup')));
+      document.getElementById('login-form').style.display = tab==='login' ? 'block' : 'none';
+      document.getElementById('signup-form').style.display = tab==='signup' ? 'block' : 'none';
+      hideAlert();
+    }
+
+    function showAlert(msg, type='error') {
+      const el = document.getElementById('alert-box');
+      el.textContent = msg;
+      el.className = 'alert ' + type;
+      el.style.display = 'block';
+    }
+    function hideAlert() {
+      document.getElementById('alert-box').style.display = 'none';
+    }
+
+    function showScreen(id) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+
+    // ── EMAIL SIGN UP ──
+    async function emailSignUp() {
+      const name = document.getElementById('signup-name').value.trim();
+      const email = document.getElementById('signup-email').value.trim();
+      const password = document.getElementById('signup-password').value;
+      if (!name || !email || !password) { showAlert('Please fill in all fields.'); return; }
+      if (password.length < 6) { showAlert('Password must be at least 6 characters.'); return; }
+      try {
+        const cred = await auth.createUserWithEmailAndPassword(email, password);
+        await cred.user.updateProfile({ displayName: name });
+        await cred.user.sendEmailVerification();
+        // Save to DB as pending
+        await db.ref('users/' + cred.user.uid).set({
+          name, email, approved: false, role: 'student', createdAt: Date.now()
+        });
+        document.getElementById('verify-email-shown').textContent = email;
+        showScreen('verify-screen');
+      } catch(e) {
+        showAlert(friendlyError(e.code));
+      }
+    }
+
+    // ── EMAIL SIGN IN ──
+    async function emailSignIn() {
+      const email = document.getElementById('login-email').value.trim();
+      const password = document.getElementById('login-password').value;
+      if (!email || !password) { showAlert('Please fill in all fields.'); return; }
+      try {
+        const cred = await auth.signInWithEmailAndPassword(email, password);
+        await handleFirebaseUser(cred.user);
+      } catch(e) {
+        showAlert(friendlyError(e.code));
+      }
+    }
+
+    // ── GOOGLE SIGN IN (Firebase popup) ──
+    async function googleSignIn() {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      try {
+        const result = await auth.signInWithPopup(provider);
+        const user = result.user;
+        const email = user.email.toLowerCase();
+        const isT = TEACHERS.includes(email);
+
+        // Always allow teachers
+        if (isT) {
+          await db.ref('users/' + user.uid).set({ name: user.displayName, email, approved: true, role: 'teacher', createdAt: Date.now() });
+          isTeacher = true;
+          loadDashboard({ name: user.displayName, email, picture: user.photoURL });
+          return;
+        }
+
+        // Check if email is in the whitelist
+        const snap = await db.ref('whitelist').orderByValue().equalTo(email).get();
+        if (!snap.exists()) {
+          await auth.signOut();
+          showAlert('⚠️ Your email is not on the approved list. Ask your teacher to add you.');
+          return;
+        }
+
+        await db.ref('users/' + user.uid).set({ name: user.displayName, email, approved: true, role: 'student', createdAt: Date.now() });
+        isTeacher = false;
+        loadDashboard({ name: user.displayName, email, picture: user.photoURL });
+      } catch(e) {
+        showAlert(friendlyError(e.code));
+      }
+    }
+
+    // ── HANDLE FIREBASE USER (email login) ──
+    async function handleFirebaseUser(user) {
+      if (!user.emailVerified) {
+        document.getElementById('verify-email-shown').textContent = user.email;
+        showScreen('verify-screen');
+        return;
+      }
+      const email = user.email.toLowerCase();
+      // Auto-approve specific accounts
+      if (AUTO_APPROVED.includes(email)) {
+        await db.ref('users/' + user.uid).set({
+          name: user.displayName || email,
+          email: user.email,
+          approved: true,
+          role: TEACHERS.includes(email) ? 'teacher' : 'student',
+          createdAt: Date.now()
+        });
+        isTeacher = TEACHERS.includes(email);
+        loadDashboard({ name: user.displayName || email, email: user.email, picture: user.photoURL });
+        return;
+      }
+      // Check approval in DB
+      const snap = await db.ref('users/' + user.uid).get();
+      const data = snap.val();
+      if (!data || !data.approved) {
+        showScreen('approval-screen');
+        return;
+      }
+      isTeacher = data.role === 'teacher';
+      loadDashboard({ name: user.displayName || data.name, email: user.email, picture: user.photoURL });
+    }
+
+    async function checkVerification() {
+      await auth.currentUser?.reload();
+      if (auth.currentUser?.emailVerified) {
+        await handleFirebaseUser(auth.currentUser);
+      } else {
+        showAlert('Email not verified yet. Please check your inbox.', 'info');
+      }
+    }
+
+    async function resendVerification() {
+      try {
+        await auth.currentUser?.sendEmailVerification();
+        showAlert('Verification email resent!', 'success');
+      } catch(e) {
+        showAlert('Could not resend. Try again later.');
+      }
+    }
+
+    function goBackToLogin() {
+      auth.signOut();
+      showScreen('login-screen');
+    }
+
+    // ── DASHBOARD ──
+    function loadDashboard({ name, email, picture }) {
+      showScreen('dashboard-screen');
+      const firstName = name?.split(' ')[0] || 'there';
+      document.getElementById('dash-name').textContent = name || email;
+      document.getElementById('dash-email').textContent = email;
+      document.getElementById('dash-welcome').textContent = `Hey, ${firstName} 👋`;
+      document.getElementById('dash-sub').textContent = isTeacher
+        ? 'Welcome back, teacher. Here are your tools.'
+        : 'Welcome back! Ready to learn today?';
+      const badge = document.getElementById('dash-role');
+      badge.textContent = isTeacher ? 'Teacher' : 'Student';
+      badge.className = 'role-badge ' + (isTeacher ? 'role-teacher' : 'role-student');
+      const avatarEl = document.getElementById('dash-avatar');
+      const initials = (name||email).split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
+      if (picture) {
+        avatarEl.innerHTML = `<img class="avatar" src="${picture}" alt="avatar" onerror="this.parentElement.innerHTML='<div class=\\"avatar-fallback\\">${initials}</div>'"/>`;
+      } else {
+        avatarEl.innerHTML = `<div class="avatar-fallback">${initials}</div>`;
+      }
+      db.ref('apps').on('value', renderApps);
+      if (isTeacher) {
+        document.getElementById('whitelist-section').style.display = 'block';
+        loadWhitelist();
+        initTestBuilder();
+      } else {
+        checkForActiveTest(name, email);
+      }
+    }
+
+    // ── WHITELIST ──
+    function loadWhitelist() {
+      db.ref('whitelist').on('value', snap => {
+        const data = snap.val() || {};
+        const list = document.getElementById('whitelist-list');
+        const entries = Object.entries(data);
+        if (entries.length === 0) {
+          list.innerHTML = '<p style="color:var(--muted);font-size:13px">No students added yet.</p>';
+          return;
+        }
+        list.innerHTML = entries.map(([id, email]) => `
+          <div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:8px;">
+            <span style="font-size:13px">${email}</span>
+            <button onclick="removeFromWhitelist('${id}')" style="background:rgba(248,113,113,0.15);border:1px solid rgba(248,113,113,0.3);color:var(--danger);padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer;">Remove</button>
+          </div>
+        `).join('');
+      });
+    }
+
+    function addToWhitelist() {
+      const email = document.getElementById('whitelist-email').value.trim().toLowerCase();
+      if (!email || !email.includes('@')) { alert('Enter a valid email.'); return; }
+      db.ref('whitelist').push(email);
+      document.getElementById('whitelist-email').value = '';
+    }
+
+    function removeFromWhitelist(id) {
+      db.ref('whitelist/' + id).remove();
+    }
+
+    function renderApps(snapshot) {
+      const customApps = snapshot.val() || {};
+      const baseApps = [...APPS_BOTH, ...(isTeacher ? APPS_TEACHER : APPS_STUDENT)];
+      const visibleCustom = Object.entries(customApps)
+        .filter(([_,a]) => a.audience==='both'||(a.audience==='teacher'&&isTeacher)||(a.audience==='student'&&!isTeacher))
+        .map(([id,a]) => ({...a, id}));
+      const grid = document.getElementById('apps-grid');
+      grid.innerHTML = [...baseApps, ...visibleCustom].map(app => `
+        <a class="app-card" href="${app.url}" target="_blank">
+          <div class="app-icon" style="background:${app.bg}">${app.icon}</div>
+          <div><div class="app-name">${app.name}</div><div class="app-desc">${app.desc||''}</div></div>
+          ${isTeacher&&!app.builtin?`<button class="delete-btn" onclick="event.preventDefault();event.stopPropagation();deleteApp('${app.id}')">✕</button>`:''}
+        </a>
+      `).join('');
+      if (isTeacher) {
+        grid.innerHTML += `<div class="add-app-btn" onclick="openModal()"><div class="add-icon">＋</div><div><div class="app-name">Add App</div><div class="app-desc">Syncs to everyone</div></div></div>`;
+      }
+    }
+
+    function signOut() {
+      db.ref('apps').off();
+      auth.signOut();
+      showScreen('login-screen');
+    }
+
+    // ── APP MODAL ──
+    function openModal() { document.getElementById('modal').classList.add('open'); }
+    function closeModal() {
+      document.getElementById('modal').classList.remove('open');
+      document.getElementById('app-name').value='';
+      document.getElementById('app-url').value='';
+      document.getElementById('app-desc').value='';
+      selectedEmoji='📚'; selectedAudience='both';
+      document.querySelectorAll('.emoji-btn').forEach((b,i)=>b.classList.toggle('selected',i===0));
+      document.querySelectorAll('.audience-btn').forEach(b=>b.classList.toggle('active',b.dataset.val==='both'));
+    }
+    function setAudience(val,el) {
+      selectedAudience=val;
+      document.querySelectorAll('.audience-btn').forEach(b=>b.classList.remove('active'));
+      el.classList.add('active');
+    }
+    function saveApp() {
+      const name=document.getElementById('app-name').value.trim();
+      let url=document.getElementById('app-url').value.trim();
+      const desc=document.getElementById('app-desc').value.trim();
+      if(!name||!url){alert('Please fill in app name and URL.');return;}
+      if(!url.startsWith('http'))url='https://'+url;
+      db.ref('apps').push({name,url,desc,icon:selectedEmoji,bg:BG_COLORS[Math.floor(Math.random()*BG_COLORS.length)],audience:selectedAudience});
+      closeModal();
+    }
+    function deleteApp(id) { db.ref('apps/'+id).remove(); }
+
+    function friendlyError(code) {
+      const map = {
+        'auth/email-already-in-use': 'That email is already registered.',
+        'auth/invalid-email': 'Please enter a valid email address.',
+        'auth/weak-password': 'Password must be at least 6 characters.',
+        'auth/wrong-password': 'Incorrect password. Please try again.',
+        'auth/user-not-found': 'No account found with that email.',
+        'auth/too-many-requests': 'Too many attempts. Please try again later.',
+        'auth/invalid-credential': 'Incorrect email or password.',
+      };
+      return map[code] || 'Something went wrong. Please try again.';
+    }
+
+    document.getElementById('modal').addEventListener('click', function(e){ if(e.target===this)closeModal(); });
+
+    // ── TEST MODE ──
+    let questions = [];
+    let testAnswers = {};
+    let timerInterval = null;
+    let currentTestData = null;
+    let currentUserName = '';
+    let currentUserEmail = '';
+
+    // Show test builder for teachers
+    function initTestBuilder() {
+      document.getElementById('test-builder-section').style.display = 'block';
+      // Listen for active test status
+      db.ref('activeTest').on('value', snap => {
+        const data = snap.val();
+        const dot = document.getElementById('test-dot');
+        const statusText = document.getElementById('test-status-text');
+        const btnActivate = document.getElementById('btn-activate');
+        const btnDeactivate = document.getElementById('btn-deactivate');
+        if (data && data.active) {
+          dot.className = 'test-status-dot dot-active';
+          statusText.textContent = `Active: "${data.title}"`;
+          btnActivate.style.display = 'none';
+          btnDeactivate.style.display = 'inline-block';
+        } else {
+          dot.className = 'test-status-dot dot-inactive';
+          statusText.textContent = 'No test active';
+          btnActivate.style.display = 'inline-block';
+          btnDeactivate.style.display = 'none';
+        }
+      });
+      // Load saved test
+      db.ref('savedTest').get().then(snap => {
+        const data = snap.val();
+        if (data) {
+          document.getElementById('test-title-input').value = data.title || '';
+          document.getElementById('test-duration').value = data.duration || 0;
+          questions = data.questions || [];
+          renderQuestionBuilder();
+        }
+      });
+    }
+
+    function addQuestion(type) {
+      if (type === 'mc') {
+        questions.push({ type:'mc', text:'', options:['','','',''], correct:0 });
+      } else if (type === 'tf') {
+        questions.push({ type:'tf', text:'', correct:'true' });
+      } else {
+        questions.push({ type:'sa', text:'' });
+      }
+      renderQuestionBuilder();
+    }
+
+    function removeQuestion(i) {
+      questions.splice(i, 1);
+      renderQuestionBuilder();
+    }
+
+    function renderQuestionBuilder() {
+      const list = document.getElementById('questions-list');
+      list.innerHTML = questions.map((q, i) => {
+        let optionsHtml = '';
+        if (q.type === 'mc') {
+          optionsHtml = `<div class="q-options">
+            ${q.options.map((opt, j) => `
+              <div class="q-option-row">
+                <input type="radio" class="correct-radio" name="correct_${i}" ${q.correct===j?'checked':''} onchange="questions[${i}].correct=${j}"/>
+                <input class="q-option-input" value="${opt}" placeholder="Option ${j+1}" oninput="questions[${i}].options[${j}]=this.value"/>
+              </div>
+            `).join('')}
+            <div style="font-size:11px;color:var(--muted);margin-top:4px;">● = correct answer</div>
+          </div>`;
+        } else if (q.type === 'tf') {
+          optionsHtml = `<div class="q-options">
+            <div class="q-option-row">
+              <input type="radio" class="correct-radio" name="correct_${i}" ${q.correct==='true'?'checked':''} onchange="questions[${i}].correct='true'"/>
+              <span style="font-size:13px">True</span>
+            </div>
+            <div class="q-option-row">
+              <input type="radio" class="correct-radio" name="correct_${i}" ${q.correct==='false'?'checked':''} onchange="questions[${i}].correct='false'"/>
+              <span style="font-size:13px">False</span>
+            </div>
+            <div style="font-size:11px;color:var(--muted);margin-top:4px;">● = correct answer</div>
+          </div>`;
+        }
+        const typeLabel = {mc:'Multiple Choice',tf:'True/False',sa:'Short Answer'}[q.type];
+        return `<div class="q-builder">
+          <div class="q-builder-row">
+            <span style="font-size:11px;font-family:'Space Mono',monospace;color:var(--muted);">Q${i+1} · ${typeLabel}</span>
+            <button class="q-remove-btn" onclick="removeQuestion(${i})">✕</button>
+          </div>
+          <input class="q-input" value="${q.text}" placeholder="Enter your question..." oninput="questions[${i}].text=this.value" style="width:100%;margin-bottom:8px"/>
+          ${optionsHtml}
+        </div>`;
+      }).join('');
+    }
+
+    async function saveTest() {
+      const title = document.getElementById('test-title-input').value.trim();
+      const duration = parseInt(document.getElementById('test-duration').value) || 0;
+      if (!title) { alert('Add a test title first.'); return; }
+      if (questions.length === 0) { alert('Add at least one question.'); return; }
+      await db.ref('savedTest').set({ title, duration, questions });
+      alert('Test saved!');
+      document.getElementById('btn-activate').style.display = 'inline-block';
+    }
+
+    async function activateTest() {
+      const snap = await db.ref('savedTest').get();
+      const data = snap.val();
+      if (!data) { alert('Save a test first.'); return; }
+      await db.ref('activeTest').set({ ...data, active: true, startedAt: Date.now() });
+      await db.ref('testResults').remove();
+    }
+
+    async function deactivateTest() {
+      await db.ref('activeTest/active').set(false);
+    }
+
+    function viewResults() {
+      const section = document.getElementById('results-section');
+      section.style.display = section.style.display === 'none' ? 'block' : 'none';
+      db.ref('testResults').on('value', snap => {
+        const data = snap.val() || {};
+        const list = document.getElementById('results-list');
+        const entries = Object.values(data);
+        if (!entries.length) { list.innerHTML = '<p style="color:var(--muted);font-size:13px">No submissions yet.</p>'; return; }
+        list.innerHTML = entries.map(r => {
+          const scored = r.score !== undefined ? `${r.score}/${r.total} (${Math.round(r.score/r.total*100)}%)` : 'Short answers — manual review';
+          return `<div class="result-item">
+            <div class="result-name">${r.name} <span style="color:var(--muted);font-weight:400">${r.email}</span></div>
+            <div class="result-score">${scored}</div>
+          </div>`;
+        }).join('');
+      });
+    }
+
+    // ── STUDENT TEST TAKING ──
+    function checkForActiveTest(name, email) {
+      currentUserName = name;
+      currentUserEmail = email;
+      db.ref('activeTest').on('value', snap => {
+        const data = snap.val();
+        if (data && data.active && !isTeacher) {
+          startTest(data);
+        }
+      });
+    }
+
+    function startTest(testData) {
+      currentTestData = testData;
+      testAnswers = {};
+      showScreen('test-screen');
+      renderTest(testData);
+      // Lockdown
+      document.addEventListener('contextmenu', e => e.preventDefault());
+      document.addEventListener('copy', e => e.preventDefault());
+      document.addEventListener('cut', e => e.preventDefault());
+      document.addEventListener('keydown', e => {
+        if (e.ctrlKey && ['c','v','x','a','p'].includes(e.key.toLowerCase())) e.preventDefault();
+        if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key==='I')) e.preventDefault();
+      });
+      // Fullscreen
+      document.documentElement.requestFullscreen?.().catch(()=>{});
+      document.addEventListener('fullscreenchange', () => {
+        if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(()=>{});
+      });
+      // Timer
+      if (testData.duration > 0) {
+        let secs = testData.duration * 60;
+        const timerEl = document.getElementById('test-timer');
+        timerInterval = setInterval(() => {
+          secs--;
+          const m = Math.floor(secs/60).toString().padStart(2,'0');
+          const s = (secs%60).toString().padStart(2,'0');
+          timerEl.textContent = `${m}:${s}`;
+          if (secs <= 0) { clearInterval(timerInterval); submitTest(); }
+        }, 1000);
+      } else {
+        document.getElementById('test-timer').textContent = '∞';
+      }
+    }
+
+    function renderTest(testData) {
+      const content = document.getElementById('test-content');
+      document.getElementById('test-progress').textContent = `${testData.questions.length} questions`;
+      content.innerHTML = `
+        <div class="test-title">${testData.title}</div>
+        <div class="test-subtitle">Answer all questions and click Submit when done. Do not leave this page.</div>
+        ${testData.questions.map((q, i) => {
+          let inputHtml = '';
+          if (q.type === 'mc') {
+            inputHtml = `<div class="options-list">${q.options.map((opt, j) => `
+              <button class="option-btn" onclick="selectAnswer(${i}, '${j}', this.parentElement)">${String.fromCharCode(65+j)}. ${opt}</button>
+            `).join('')}</div>`;
+          } else if (q.type === 'tf') {
+            inputHtml = `<div class="options-list">
+              <button class="option-btn" onclick="selectAnswer(${i}, 'true', this.parentElement)">✓ True</button>
+              <button class="option-btn" onclick="selectAnswer(${i}, 'false', this.parentElement)">✗ False</button>
+            </div>`;
+          } else {
+            inputHtml = `<textarea class="short-answer" placeholder="Type your answer here..." oninput="testAnswers[${i}]=this.value"></textarea>`;
+          }
+          return `<div class="question-card">
+            <div class="question-num">Question ${i+1}</div>
+            <div class="question-text">${q.text}</div>
+            ${inputHtml}
+          </div>`;
+        }).join('')}
+        <button class="submit-test-btn" onclick="submitTest()">Submit Test ✓</button>
+      `;
+    }
+
+    function selectAnswer(qIndex, val, container) {
+      testAnswers[qIndex] = val;
+      container.querySelectorAll('.option-btn').forEach(b => b.classList.remove('selected'));
+      event.target.classList.add('selected');
+    }
+
+    async function submitTest() {
+      clearInterval(timerInterval);
+      // Auto-score MC and T/F
+      let score = 0; let total = 0;
+      const qs = currentTestData.questions;
+      let hasShortAnswer = false;
+      qs.forEach((q, i) => {
+        if (q.type === 'sa') { hasShortAnswer = true; return; }
+        total++;
+        if (String(testAnswers[i]) === String(q.correct)) score++;
+      });
+      const result = {
+        name: currentUserName,
+        email: currentUserEmail,
+        answers: testAnswers,
+        submittedAt: Date.now(),
+        score: hasShortAnswer ? undefined : score,
+        total: hasShortAnswer ? undefined : total
+      };
+      await db.ref('testResults/' + btoa(currentUserEmail).replace(/=/g,'')).set(result);
+      // Exit lockdown
+      document.exitFullscreen?.().catch(()=>{});
+      document.removeEventListener('contextmenu', e => e.preventDefault());
+      document.getElementById('test-content').innerHTML = `
+        <div class="test-complete">
+          <div class="icon">✅</div>
+          <h1>Test Submitted!</h1>
+          <p>${hasShortAnswer ? 'Your answers have been recorded. Your teacher will review them.' : `You scored ${score} out of ${total} (${Math.round(score/total*100)}%)`}</p>
+        </div>
+      `;
+      // After 5 seconds go back to dashboard
+      setTimeout(() => { showScreen('dashboard-screen'); }, 5000);
+    }
+
+    // ── EMAIL 2FA ──
+    const WEB3FORMS_KEY = 'b82240a6-30db-47fb-b89a-d79659976792';
+
+    let twoFACode = null;
+    let twoFAExpiry = null;
+    let twoFAUser = null;
+
+    function generateCode() {
+      return Math.floor(100000 + Math.random() * 900000).toString();
+    }
+
+    async function send2FA(user) {
+      twoFAUser = user;
+      twoFACode = generateCode();
+      twoFAExpiry = Date.now() + 10 * 60 * 1000;
+      document.getElementById('twofa-email-shown').textContent = user.email;
+      document.getElementById('twofa-alert').style.display = 'none';
+      document.getElementById('twofa-code').value = '';
+      showScreen('twofa-screen');
+      try {
+        const res = await fetch('https://api.web3forms.com/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({
+            access_key: WEB3FORMS_KEY,
+            subject: `ProLogin 2FA Code for ${user.email}`,
+            name: user.displayName || 'Teacher',
+            email: user.email,
+            message: `2FA verification code for ${user.email}:
+
+${twoFACode}
+
+Expires in 10 minutes.`
+          })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error('Failed');
+      } catch(e) {
+        const el = document.getElementById('twofa-alert');
+        el.textContent = 'Could not send code. Try again.';
+        el.style.display = 'block';
+      }
+    }
+
+    async function verify2FA() {
+      const entered = document.getElementById('twofa-code').value.trim();
+      const el = document.getElementById('twofa-alert');
+      if (Date.now() > twoFAExpiry) {
+        el.textContent = 'Code expired. Please request a new one.';
+        el.style.display = 'block';
+        return;
+      }
+      if (entered !== twoFACode) {
+        el.textContent = 'Incorrect code. Please try again.';
+        el.style.display = 'block';
+        return;
+      }
+      // Code correct — proceed to dashboard
+      isTeacher = true;
+      loadDashboard({ name: twoFAUser.displayName, email: twoFAUser.email, picture: twoFAUser.photoURL });
+    }
+
+    async function resend2FA() {
+      if (twoFAUser) await send2FA(twoFAUser);
+    }
+
+    // ── GOOGLE CALENDAR ──
+    const CAL_CLIENT_ID = '177293144568-k85gf1jttmjsup4f4rgelfauugu55bpe.apps.googleusercontent.com';
+    const CAL_SCOPES = 'https://www.googleapis.com/auth/calendar.readonly';
+    let calTokenClient = null;
+
+    function connectCalendar() {
+      if (!window.google?.accounts?.oauth2) {
+        setTimeout(connectCalendar, 500);
+        return;
+      }
+      calTokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CAL_CLIENT_ID,
+        scope: CAL_SCOPES,
+        callback: (resp) => {
+          if (resp.error) return;
+          loadCalendarEvents(resp.access_token);
+        }
+      });
+      calTokenClient.requestAccessToken();
+    }
+
+    async function loadCalendarEvents(token) {
+      const now = new Date().toISOString();
+      const end = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      try {
+        const res = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${now}&timeMax=${end}&singleEvents=true&orderBy=startTime&maxResults=5`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const data = await res.json();
+        const events = data.items || [];
+        const body = document.getElementById('cal-body');
+        if (!events.length) {
+          body.innerHTML = '<div class="cal-empty">No upcoming events this week 🎉</div>';
+          return;
+        }
+        body.innerHTML = events.map(e => {
+          const start = e.start.dateTime ? new Date(e.start.dateTime) : new Date(e.start.date);
+          const day = start.getDate();
+          const month = start.toLocaleString('default', { month: 'short' });
+          const time = e.start.dateTime
+            ? start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : 'All day';
+          return `<div class="cal-event">
+            <div class="cal-date"><div class="day">${day}</div><div class="month">${month}</div></div>
+            <div class="cal-info"><div class="title">${e.summary || 'Untitled'}</div><div class="time">${time}</div></div>
+          </div>`;
+        }).join('');
+      } catch(err) {
+        document.getElementById('cal-body').innerHTML = '<div class="cal-empty">Could not load events.</div>';
+      }
+    }
+  </script>
+</body>
+</html>
